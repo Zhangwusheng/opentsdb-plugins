@@ -31,14 +31,14 @@ public class IdentityPlugin extends StartupPlugin {
   }
 
   @Override
-  public Config initialize(Config config) throws Exception {
+  public Config initialize(Config config)  {
     log.info("Apache Curator ServiceDiscovery Plugin Initialized");
     log.debug("Finished with config");
     return config;
   }
 
   @Override
-  public void isReady(TSDB tsdb) throws Exception {
+  public void setReady(TSDB tsdb) {
     log.info("OpenTSDB is Ready");
 //    Config config = tsdb.getConfig();
 //    Integer port = config.getInt("tsd.network.port");

@@ -32,14 +32,14 @@ public class CuratorPlugin extends StartupPlugin {
   }
 
   @Override
-  public Config initialize(Config config) throws IllegalArgumentException, Exception {
+  public Config initialize(Config config) throws IllegalArgumentException {
     log.info("Apache Curator ServiceDiscovery Plugin Initialized");
     log.debug("Finished with config");
     return config;
   }
 
   @Override
-  public void isReady(TSDB tsdb) throws Exception {
+  public void setReady(TSDB tsdb) {
     log.info("OpenTSDB is Ready");
     log.info("OpenTSDB is listening on " + tsdb.getConfig().getInt("tsd.network.port"));
     return;

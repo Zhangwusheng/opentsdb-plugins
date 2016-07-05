@@ -16,7 +16,7 @@ gradle clean fatJar runFatJar
 19:58:20.122 [main] DEBUG i.t.o.discoveryplugins.CuratorPlugin - constructor called
 19:58:20.123 [main] INFO  i.t.o.discoveryplugins.CuratorPlugin - Apache Curator ServiceDiscovery Plugin Initialized
 19:58:20.123 [main] DEBUG i.t.o.discoveryplugins.CuratorPlugin - Finished with config
-19:58:20.123 [main] INFO  i.t.o.discoveryplugins.ExecutePlugin - Successfully initialized startup plugin [io.tsdb.opentsdb.discoveryplugins.CuratorPlugin] version: 2.0.0
+19:58:20.123 [main] INFO  i.t.o.discoveryplugins.ExecutePlugin - Successfully initialized startup plugin [io.tsdb.opentsdb.discovery.CuratorPlugin] version: 2.0.0
 19:58:20.123 [main] INFO  i.t.o.discoveryplugins.ExecutePlugin - 2.0.0
 19:58:20.123 [main] INFO  i.t.o.discoveryplugins.ExecutePlugin - shutting down
 19:58:20.123 [main] DEBUG i.t.o.discoveryplugins.CuratorPlugin - shutting down.

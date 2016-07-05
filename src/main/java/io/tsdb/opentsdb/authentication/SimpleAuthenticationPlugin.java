@@ -1,4 +1,4 @@
-package io.tsdb.opentsdb.authplugins;
+package io.tsdb.opentsdb.authentication;
 // This file is part of OpenTSDB.
 // Copyright (C) 2010-2012  The OpenTSDB Authors.
 //
@@ -60,7 +60,7 @@ public class SimpleAuthenticationPlugin extends AuthenticationPlugin {
     }
 
     @Override
-    public Boolean handleTelnetAuth(String[] command) {
+    public Boolean authenticateTelnet(String[] command) {
         Boolean ret = false;
         if (command.length  < 3 || command.length > 4) {
             LOG.error("Invalid Authentication Command Length: " + Integer.toString(command.length));
@@ -85,7 +85,7 @@ public class SimpleAuthenticationPlugin extends AuthenticationPlugin {
 
     //Authorization: OpenTSDB accessKey:digest:epoch:nonce
     @Override
-    public Boolean handleHTTPAuth(final HttpRequest req) {
+    public Boolean authenticateHTTP(final HttpRequest req) {
         Iterable<Map.Entry<String,String>> headers = req.headers();
         Iterator entries = headers.iterator();
         while (entries.hasNext()) {

@@ -1,4 +1,4 @@
-package io.tsdb.opentsdb.authplugins;
+package io.tsdb.opentsdb.authentication;
 /**
  * Copyright 2015 The opentsdb Authors
  * <p/>

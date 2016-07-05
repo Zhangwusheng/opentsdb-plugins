@@ -1,4 +1,4 @@
-package io.tsdb.opentsdb.discoveryplugins;
+package io.tsdb.opentsdb.discovery;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;

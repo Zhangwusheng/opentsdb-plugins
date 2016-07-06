@@ -1,6 +1,6 @@
 package io.tsdb.opentsdb.discovery;
 /**
- * Copyright 2015 The openfoo Authors
+ * Copyright 2015 The DiscoveryPlugins Authors
  * <p/>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ package io.tsdb.opentsdb.discovery;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import org.kohsuke.MetaInfServices;
 import com.stumbleupon.async.Deferred;
 import net.opentsdb.core.TSDB;
@@ -62,5 +63,10 @@ public class CuratorPlugin extends StartupPlugin {
   @Override
   public void collectStats(StatsCollector collector) {
     return;
+  }
+
+  @Override
+  public Boolean getPluginReady() {
+    return true;
   }
 }

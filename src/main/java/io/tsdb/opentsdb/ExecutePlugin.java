@@ -15,16 +15,30 @@ package io.tsdb.opentsdb;
  * limitations under the License.
  */
 
+import net.opentsdb.core.TSDB;
 import net.opentsdb.tools.ArgP;
+import net.opentsdb.tsd.PipelineFactory;
+import net.opentsdb.tsd.RpcManager;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.PluginLoader;
 import net.opentsdb.tools.StartupPlugin;
+import net.opentsdb.utils.Threads;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.socket.ServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioServerBossPool;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioWorkerPool;
+import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.ServiceLoader;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class ExecutePlugin {
   private static Logger LOG = LoggerFactory.getLogger(ExecutePlugin.class);
@@ -48,21 +62,134 @@ public class ExecutePlugin {
     else
       config = new Config(true);
 
+    final ServerSocketChannelFactory factory;
+    int connections_limit = 0;
+    try {
+      connections_limit = config.getInt("tsd.core.connections.limit");
+    } catch (NumberFormatException nfe) {
+      nfe.printStackTrace();
+    }
+    if (config.getBoolean("tsd.network.async_io")) {
+      int workers = Runtime.getRuntime().availableProcessors() * 2;
+      if (config.hasProperty("tsd.network.worker_threads")) {
+        try {
+          workers = config.getInt("tsd.network.worker_threads");
+        } catch (NumberFormatException nfe) {
+          nfe.printStackTrace();
+        }
+      }
+      final Executor executor = Executors.newCachedThreadPool();
+      final NioServerBossPool boss_pool =
+              new NioServerBossPool(executor, 1, new Threads.BossThreadNamer());
+      final NioWorkerPool worker_pool = new NioWorkerPool(executor,
+              workers, new Threads.WorkerThreadNamer());
+      factory = new NioServerSocketChannelFactory(boss_pool, worker_pool);
+    } else {
+      factory = new OioServerSocketChannelFactory(
+              Executors.newCachedThreadPool(), Executors.newCachedThreadPool(),
+              new Threads.PrependThreadNamer());
+    }
+
     StartupPlugin startup = null;
     startup = loadStartupPlugin(config);
-    LOG.info(startup.version());
+    if (startup != null) {
+      LOG.info(startup.version());
+    } else {
+      LOG.info("Did not load Startup Plugin");
+    }
+
+    TSDB tsdb = new TSDB(config);
+//    startup.setReady(tsdb);
+//    if (startup.getPluginReady()) {
+//      LOG.info("Registered this instance with Consul");
+//    } else {
+//      LOG.info("Consul reports that this instance is not registered");
+//    }
+
+    tsdb.initializePlugins(true);
+    if (config.getBoolean("tsd.storage.hbase.prefetch_meta")) {
+      tsdb.preFetchHBaseMeta();
+    }
+
+    // Make sure we don't even start if we can't find our tables.
+    try {
+      tsdb.checkNecessaryTablesExist().joinUninterruptibly();
+    } catch (Exception e1) {
+      e1.printStackTrace();
+    }
+
+    //registerShutdownHook();
+    final ServerBootstrap server = new ServerBootstrap(factory);
+
+    // This manager is capable of lazy init, but we force an init
+    // here to fail fast.
+    final RpcManager manager = RpcManager.instance(tsdb);
+
+    server.setPipelineFactory(new PipelineFactory(tsdb, manager, connections_limit));
+    if (config.hasProperty("tsd.network.backlog")) {
+      server.setOption("backlog", config.getInt("tsd.network.backlog"));
+    }
+    server.setOption("child.tcpNoDelay",
+            config.getBoolean("tsd.network.tcp_no_delay"));
+    server.setOption("child.keepAlive",
+            config.getBoolean("tsd.network.keep_alive"));
+    server.setOption("reuseAddress",
+            config.getBoolean("tsd.network.reuse_address"));
+
+    // null is interpreted as the wildcard address.
+    InetAddress bindAddress = null;
+    if (config.hasProperty("tsd.network.bind")) {
+      bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
+    }
+
+    // we validated the network port config earlier
+    final InetSocketAddress addr = new InetSocketAddress(bindAddress,
+            config.getInt("tsd.network.port"));
+    server.bind(addr);
+    if (startup != null) {
+      startup.setReady(tsdb);
+    }
+    LOG.info("Ready to serve on " + addr);
+
+    try {
+      Thread.sleep(4000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    if (startup.getPluginReady()) {
+      LOG.info("Registered this instance with Consul");
+    } else {
+      LOG.info("Consul reports that this instance is not registered");
+    }
+    try {
+      Thread.sleep(4000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    if (startup.getPluginReady()) {
+      LOG.info("Registered this instance with Consul");
+    } else {
+      LOG.info("Consul reports that this instance is not registered");
+    }
     LOG.info("shutting down");
-    startup.shutdown();
+    if (startup != null) {
+      startup.shutdown();
+    }
+    tsdb.shutdown();
+    System.exit(0);
   }
 
   protected static StartupPlugin loadStartupPlugin(Config config) {
     // load the startup plugin if enabled
     StartupPlugin startup = null;
-
-//    if (config.getBoolean("tsd.startup.enable")) {
-      startup = PluginLoader.loadSpecificPlugin(
-              config.getString("tsd.startup.plugin"), StartupPlugin.class);
+    if (config.getBoolean("tsd.startup.enable")) {
+      LOG.debug("startup plugin enabled");
+      String startupPluginClass = config.getString("tsd.startup.plugin");
+      LOG.debug(String.format("Will attempt to load: %s", startupPluginClass));
+      startup = PluginLoader.loadSpecificPlugin(startupPluginClass
+              , StartupPlugin.class);
       if (startup == null) {
+        LOG.debug(String.format("2nd attempt will attempt to load: %s", startupPluginClass));
         startup = loadSpecificPlugin(config.getString("tsd.startup.plugin"), StartupPlugin.class);
         if (startup == null) {
           throw new IllegalArgumentException("Unable to locate startup plugin: " +
@@ -74,12 +201,12 @@ public class ExecutePlugin {
       } catch (Exception e) {
         throw new RuntimeException("Failed to initialize startup plugin", e);
       }
-      LOG.info("Successfully initialized startup plugin [" +
+      LOG.info("initialized startup plugin [" +
               startup.getClass().getCanonicalName() + "] version: "
               + startup.version());
-//    } else {
-//      startup = null;
-//    }
+    } else {
+      startup = null;
+    }
 
     return startup;
   }

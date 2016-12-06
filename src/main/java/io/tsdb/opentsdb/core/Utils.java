@@ -17,6 +17,9 @@ package io.tsdb.opentsdb.core;
 
 import io.tsdb.opentsdb.realtime.RollupPublisher;
 import net.opentsdb.core.IncomingDataPoint;
+import net.opentsdb.tools.StartupPlugin;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.PluginLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,5 +58,87 @@ public class Utils {
       tagString += key + value;
     }
     return tagString;
+  }
+
+  public static String getConfigPropertyString(Config config, String propertyName, String defaultValue) {
+    String retVal = defaultValue;
+    if (config.hasProperty(propertyName)) {
+      retVal = config.getString(propertyName);
+    }
+    return retVal;
+  }
+
+  public static Integer getConfigPropertyInt(Config config, String propertyName, Integer defaultValue) {
+    Integer retVal = defaultValue;
+    if (config.hasProperty(propertyName)) {
+      retVal = config.getInt(propertyName);
+    }
+    return retVal;
+  }
+
+  public static StartupPlugin loadStartupPlugin(Config config) {
+    // load the startup plugin if enabled
+    StartupPlugin startup = null;
+    if (config.getBoolean("tsd.startup.enable")) {
+      LOG.debug("startup plugin enabled");
+      String startupPluginClass = config.getString("tsd.startup.plugin");
+      LOG.debug(String.format("Will attempt to load: %s", startupPluginClass));
+      startup = PluginLoader.loadSpecificPlugin(startupPluginClass
+              , StartupPlugin.class);
+      if (startup == null) {
+        LOG.debug(String.format("2nd attempt will attempt to load: %s", startupPluginClass));
+        startup = loadSpecificPlugin(config.getString("tsd.startup.plugin"), StartupPlugin.class);
+        if (startup == null) {
+          throw new IllegalArgumentException("Unable to locate startup plugin: " +
+                  config.getString("tsd.startup.plugin"));
+        }
+      }
+      try {
+        startup.initialize(config);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to initialize startup plugin", e);
+      }
+      LOG.info("initialized startup plugin [" +
+              startup.getClass().getCanonicalName() + "] version: "
+              + startup.version());
+    } else {
+      startup = null;
+    }
+
+    return startup;
+  }
+
+  /**
+   * @param name
+   * @param type
+   * @param <T>
+   * @return
+   */
+  protected static <T> T loadSpecificPlugin(final String name,
+                                            final Class<T> type) {
+    LOG.debug("trying to find: " + name);
+    if (name.isEmpty()) {
+      throw new IllegalArgumentException("Missing plugin name");
+    }
+    ServiceLoader<T> serviceLoader = ServiceLoader.load(type);
+    Iterator<T> it = serviceLoader.iterator();
+
+    if (!it.hasNext()) {
+      LOG.warn("Unable to locate any plugins of the type: " + type.getName());
+      return null;
+    }
+
+    while(it.hasNext()) {
+      T plugin = it.next();
+      if (plugin.getClass().getName().toString().equals(name) || plugin.getClass().getSuperclass().getName().toString().equals(name)) {
+        LOG.debug("matched!");
+        return plugin;
+      } else {
+        LOG.debug(plugin.getClass().getName() + " and " +  plugin.getClass().getSuperclass() + " did not match: " + name);
+      }
+    }
+
+    LOG.warn("Unable to locate locate plugin: " + name);
+    return null;
   }
 }

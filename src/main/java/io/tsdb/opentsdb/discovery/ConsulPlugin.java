@@ -32,6 +32,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+import static io.tsdb.opentsdb.core.Utils.getConfigPropertyInt;
+import static io.tsdb.opentsdb.core.Utils.getConfigPropertyString;
+
 @MetaInfServices
 public class ConsulPlugin extends StartupPlugin {
     private Logger log = LoggerFactory.getLogger(ConsulPlugin.class);
@@ -46,10 +49,10 @@ public class ConsulPlugin extends StartupPlugin {
     public Config initialize(final Config config) {
         try {
             this.visibleHost = getConfigPropertyString(config, "tsd.discovery.visble_host", "localhost");
+            this.visiblePort = getConfigPropertyInt(config, "tsd.discovery.visble_port", 4242);
             this.serviceName = getConfigPropertyString(config, "tsd.discovery.service_name", "OpenTSDB");
             this.serviceId   = getConfigPropertyString(config, "tsd.discovery.service_id", "opentsdb");
             this.tsdMode     = getConfigPropertyString(config, "tsd.mode", "ro");
-            this.visiblePort = getConfigPropertyInt(config, "tsd.discovery.visble_port", 4242);
 
             String consulUrl = getConfigPropertyString(config, "tsd.discovery.consul_url", "http://localhost:8500");
 
@@ -63,33 +66,14 @@ public class ConsulPlugin extends StartupPlugin {
         return config;
     }
 
-    private String getConfigPropertyString(Config config, String propertyName, String defaultValue) {
-        String retVal = defaultValue;
-        if (config.hasProperty(propertyName)) {
-            retVal = config.getString(propertyName);
-        }
-        log.debug(String.format("%s: %s", propertyName, retVal));
-        return retVal;
-    }
-
-    private Integer getConfigPropertyInt(Config config, String propertyName, Integer defaultValue) {
-        Integer retVal = defaultValue;
-        if (config.hasProperty(propertyName)) {
-            retVal = config.getInt(propertyName);
-        }
-        log.debug(String.format("%s: %d", propertyName, retVal));
-        return retVal;
-    }
-
     @Override
     public void setReady(TSDB tsdb) {
         log.debug("OpenTSDB is Ready");
         try {
             HostAndPort tsdHostAndPort = HostAndPort.fromParts(visibleHost, visiblePort);
-
             AgentClient agentClient = this.consul.agentClient();
             agentClient.register(visiblePort, tsdHostAndPort, 30L, this.serviceName, this.serviceId, tsdMode);
-            if (agentClient.isRegistered(this.serviceName)) {
+            if (agentClient.isRegistered(this.serviceId)) {
                 log.info("Registered this instance with Consul");
             } else {
                 log.info("Consul reports that this instance is not registered");
@@ -101,13 +85,14 @@ public class ConsulPlugin extends StartupPlugin {
 
     @Override
     public Deferred<Object> shutdown() {
+        Deferred<Object> deferred = new Deferred<>();
         try {
-            AgentClient agentClient = this.consul.agentClient();
-            agentClient.deregister(this.serviceName);
+            this.consul.agentClient().deregister(this.serviceId);
+            log.info("Instance Deregistered from Consul");
         } catch (Exception e) {
             log.error("Could not deregister this instance with Consul", e);
         }
-        return null;
+        return deferred;
     }
 
     @Override
@@ -121,7 +106,12 @@ public class ConsulPlugin extends StartupPlugin {
 
     @Override
     public Boolean getPluginReady() {
-        AgentClient agentClient = this.consul.agentClient();
-        return agentClient.isRegistered(this.serviceName);
+        if (this.consul.agentClient().isRegistered(this.serviceId)) {
+            log.debug("This instance is ready and registered with Consul");
+            return true;
+        } else {
+            log.debug("Consul reports that this instance is not registered");
+            return false;
+        }
     }
 }

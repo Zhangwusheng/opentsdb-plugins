@@ -15,13 +15,14 @@ package io.tsdb.opentsdb;
  * limitations under the License.
  */
 
+import io.netty.handler.timeout.TimeoutException;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.tools.ArgP;
+import net.opentsdb.tools.StartupPlugin;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.RpcManager;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.PluginLoader;
-import net.opentsdb.tools.StartupPlugin;
 import net.opentsdb.utils.Threads;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.socket.ServerSocketChannelFactory;
@@ -35,14 +36,19 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Iterator;
 import java.util.ServiceLoader;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+import static io.tsdb.opentsdb.core.Utils.loadStartupPlugin;
+
 public class ExecutePlugin {
   private static Logger LOG = LoggerFactory.getLogger(ExecutePlugin.class);
   private static final short DEFAULT_FLUSH_INTERVAL = 1000;
+  private static TSDB tsdb = null;
+  private static StartupPlugin startup = null;
 
   public static void main(String[] args) throws IOException {
     LOG.info("Starting.");
@@ -62,6 +68,10 @@ public class ExecutePlugin {
     else
       config = new Config(true);
 
+    ExecutePlugin.run(config);
+  }
+
+  public static void run(Config config){
     final ServerSocketChannelFactory factory;
     int connections_limit = 0;
     try {
@@ -90,7 +100,6 @@ public class ExecutePlugin {
               new Threads.PrependThreadNamer());
     }
 
-    StartupPlugin startup = null;
     startup = loadStartupPlugin(config);
     if (startup != null) {
       LOG.info(startup.version());
@@ -98,14 +107,11 @@ public class ExecutePlugin {
       LOG.info("Did not load Startup Plugin");
     }
 
-    TSDB tsdb = new TSDB(config);
-//    startup.setReady(tsdb);
-//    if (startup.getPluginReady()) {
-//      LOG.info("Registered this instance with Consul");
-//    } else {
-//      LOG.info("Consul reports that this instance is not registered");
-//    }
-
+    tsdb = new TSDB(config);
+    if (startup != null) {
+      tsdb.setStartupPlugin(startup);
+    }
+    tsdb.initializePlugins(true);
     tsdb.initializePlugins(true);
     if (config.getBoolean("tsd.storage.hbase.prefetch_meta")) {
       tsdb.preFetchHBaseMeta();
@@ -118,7 +124,7 @@ public class ExecutePlugin {
       e1.printStackTrace();
     }
 
-    //registerShutdownHook();
+    registerShutdownHook();
     final ServerBootstrap server = new ServerBootstrap(factory);
 
     // This manager is capable of lazy init, but we force an init
@@ -139,7 +145,11 @@ public class ExecutePlugin {
     // null is interpreted as the wildcard address.
     InetAddress bindAddress = null;
     if (config.hasProperty("tsd.network.bind")) {
-      bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
+      try {
+        bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
+      } catch (UnknownHostException e) {
+        e.printStackTrace();
+      }
     }
 
     // we validated the network port config earlier
@@ -151,97 +161,53 @@ public class ExecutePlugin {
     }
     LOG.info("Ready to serve on " + addr);
 
-    try {
-      Thread.sleep(4000);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
+    int tickCount = 0;
+    int STARTUP_READY_TIMEOUT = 30;
+
+    while (! startup.getPluginReady()) {
+      try {
+
+        if (tickCount >= STARTUP_READY_TIMEOUT) {
+          throw new TimeoutException("Timeout while waiting for Startup Plugin Ready");
+        }
+
+        Thread.sleep(1000);
+        tickCount++;
+      } catch (InterruptedException e) {
+        LOG.error("Startup Plugin ready interrupted", e);
+        break;
+      } catch (TimeoutException e) {
+        LOG.warn("Startup Plugin is not Ready and timeout expired!");
+        break;
+      }
     }
     if (startup.getPluginReady()) {
-      LOG.info("Registered this instance with Consul");
-    } else {
-      LOG.info("Consul reports that this instance is not registered");
+      LOG.info("Startup Plugin is Ready");
     }
-    try {
-      Thread.sleep(4000);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
-    if (startup.getPluginReady()) {
-      LOG.info("Registered this instance with Consul");
-    } else {
-      LOG.info("Consul reports that this instance is not registered");
-    }
-    LOG.info("shutting down");
-    if (startup != null) {
-      startup.shutdown();
-    }
-    tsdb.shutdown();
-    System.exit(0);
   }
 
-  protected static StartupPlugin loadStartupPlugin(Config config) {
-    // load the startup plugin if enabled
-    StartupPlugin startup = null;
-    if (config.getBoolean("tsd.startup.enable")) {
-      LOG.debug("startup plugin enabled");
-      String startupPluginClass = config.getString("tsd.startup.plugin");
-      LOG.debug(String.format("Will attempt to load: %s", startupPluginClass));
-      startup = PluginLoader.loadSpecificPlugin(startupPluginClass
-              , StartupPlugin.class);
-      if (startup == null) {
-        LOG.debug(String.format("2nd attempt will attempt to load: %s", startupPluginClass));
-        startup = loadSpecificPlugin(config.getString("tsd.startup.plugin"), StartupPlugin.class);
-        if (startup == null) {
-          throw new IllegalArgumentException("Unable to locate startup plugin: " +
-                  config.getString("tsd.startup.plugin"));
+  private static void registerShutdownHook() {
+    final class TSDBShutdown extends Thread {
+      public TSDBShutdown() {
+        super("TSDBShutdown");
+      }
+      public void run() {
+        try {
+          if (RpcManager.isInitialized()) {
+            // Check that its actually been initialized.  We don't want to
+            // create a new instance only to shutdown!
+            RpcManager.instance(tsdb).shutdown().join(10000);
+          }
+          if (tsdb != null) {
+            tsdb.shutdown();
+          }
+        } catch (Exception e) {
+          LoggerFactory.getLogger(TSDBShutdown.class)
+                  .error("Uncaught exception during shutdown", e);
         }
       }
-      try {
-        startup.initialize(config);
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to initialize startup plugin", e);
-      }
-      LOG.info("initialized startup plugin [" +
-              startup.getClass().getCanonicalName() + "] version: "
-              + startup.version());
-    } else {
-      startup = null;
     }
-
-    return startup;
+    Runtime.getRuntime().addShutdownHook(new TSDBShutdown());
   }
 
-  /**
-   * @param name
-   * @param type
-   * @param <T>
-   * @return
-   */
-  protected static <T> T loadSpecificPlugin(final String name,
-                                            final Class<T> type) {
-    LOG.debug("trying to find: " + name);
-    if (name.isEmpty()) {
-      throw new IllegalArgumentException("Missing plugin name");
-    }
-    ServiceLoader<T> serviceLoader = ServiceLoader.load(type);
-    Iterator<T> it = serviceLoader.iterator();
-
-    if (!it.hasNext()) {
-      LOG.warn("Unable to locate any plugins of the type: " + type.getName());
-      return null;
-    }
-
-    while(it.hasNext()) {
-      T plugin = it.next();
-      if (plugin.getClass().getName().toString().equals(name) || plugin.getClass().getSuperclass().getName().toString().equals(name)) {
-        LOG.debug("matched!");
-        return plugin;
-      } else {
-        LOG.debug(plugin.getClass().getName() + " and " +  plugin.getClass().getSuperclass() + " did not match: " + name);
-      }
-    }
-
-    LOG.warn("Unable to locate locate plugin: " + name);
-    return null;
-  }
 }

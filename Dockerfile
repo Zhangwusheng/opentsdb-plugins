@@ -17,9 +17,6 @@ ENV       JAR DiscoveryPlugins-all-1.0-SNAPSHOT.jar
 
 # It is expected these might need to be passed in with the -e flag
 ENV       JAVA_OPTS="-Xms512m -Xmx2048m"
-ENV       ZKQUORUM zookeeper:2181
-ENV       TSDB_OPTS "--read-only --disable-ui"
-ENV       TSDB_PORT  4244
 
 WORKDIR   $WORKDIR
 
@@ -28,4 +25,4 @@ ADD       src/main/resources/opentsdb.conf $CONFIG
 
 VOLUME    ["/etc/opentsdb"]
 
-CMD java -jar build/libs/${JAR} --config=${CONFIG}
+CMD java ${JAVA_OPTS} -jar build/libs/${JAR} --config=${CONFIG}

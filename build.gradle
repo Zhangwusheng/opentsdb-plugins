@@ -11,6 +11,8 @@ repositories {
         dirs 'libs'
     }
     mavenCentral()
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+    maven { url "http://repo.maven.apache.org/maven2" }
 }
 
 configurations{
@@ -36,8 +38,23 @@ dependencies {
     compile 'com.orbitz.consul:consul-client:0.12.3'
     compile group: 'org.apache.curator', name: 'curator-framework', version: '3.2.0'
     // Added for OpenTSDB
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.7.5'
-    compile group: 'org.hbase', name: 'asynchbase', version: '1.7.1'
+    compile group: 'com.google.guava', name: 'guava', version:'18.0'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version:'2.4.3'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version:'2.4.3'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version:'2.4.3'
+    compile group: 'com.stumbleupon', name: 'async', version:'1.4.0'
+    compile group: 'org.slf4j', name: 'slf4j-api', version:'1.7.7'
+    compile group: 'org.apache.commons', name: 'commons-math3', version:'3.4.1'
+    compile group: 'org.apache.commons', name: 'commons-jexl', version:'2.1.1'
+    compile group: 'org.jgrapht', name: 'jgrapht-core', version:'0.9.1'
+    compile group: 'org.slf4j', name: 'log4j-over-slf4j', version:'1.7.7'
+    compile group: 'org.hbase', name: 'asynchbase', version:'1.7.2'
+    compile(group: 'org.apache.zookeeper', name: 'zookeeper', version:'3.4.6') {
+      exclude(module: 'log4j')
+      exclude(module: 'slf4j-log4j12')
+      exclude(module: 'jline')
+      exclude(module: 'junit')
+    }
     // End Added for TSDB
     providedCompile files('libs/tsdb-2.3.0-RC2.jar')
     testCompile group: 'org.testng', name: 'testng', version:'6.8'

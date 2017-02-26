@@ -23,7 +23,10 @@ configurations{
 dependencies {
     compile group: 'com.stumbleupon', name: 'async', version: '1.4.1'
     compile 'com.google.collections:google-collections:1.0'
-    compile 'ch.qos.logback:logback-classic:1.1.6'
+    // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.1'
+    // https://mvnrepository.com/artifact/ch.qos.logback/logback-core
+    compile group: 'ch.qos.logback', name: 'logback-core', version: '1.2.1'
     // https://mvnrepository.com/artifact/org.kohsuke.metainf-services/metainf-services
     compile group: 'org.kohsuke.metainf-services', name: 'metainf-services', version: '1.7'
     // https://mvnrepository.com/artifact/commons-daemon/commons-daemon

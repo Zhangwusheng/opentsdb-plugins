@@ -66,7 +66,7 @@ public class CuratorPlugin extends StartupPlugin {
   }
 
   @Override
-  public Boolean getPluginReady() {
+  public boolean getPluginReady() {
     return true;
   }
 }

@@ -43,7 +43,7 @@ public class IdentityPlugin extends StartupPlugin {
 //    Config config = tsdb.getConfig();
 //    Integer port = config.getInt("tsd.network.port");
 //    log.info("OpenTSDB is listening on " + Integer.toString(port));
-    return;
+    //return;
   }
 
   @Override
@@ -66,7 +66,7 @@ public class IdentityPlugin extends StartupPlugin {
   }
 
   @Override
-  public Boolean getPluginReady() {
+  public boolean getPluginReady() {
     return true;
   }
 }

@@ -105,7 +105,7 @@ public class ConsulPlugin extends StartupPlugin {
     public void collectStats(StatsCollector statsCollector) { }
 
     @Override
-    public Boolean getPluginReady() {
+    public boolean getPluginReady() {
         if (this.consul.agentClient().isRegistered(this.serviceId)) {
             log.debug("This instance is ready and registered with Consul");
             return true;

@@ -1,21 +1,20 @@
 package io.tsdb.opentsdb.core;
-/**
- * Copyright 2015 The DiscoveryPlugins Authors
- * <p/>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p/>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p/>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/*
+  Copyright 2015 The DiscoveryPlugins Authors
+  <p/>
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  <p/>
+  http://www.apache.org/licenses/LICENSE-2.0
+  <p/>
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
  */
 
-import io.tsdb.opentsdb.realtime.RollupPublisher;
 import net.opentsdb.core.IncomingDataPoint;
 import net.opentsdb.tools.StartupPlugin;
 import net.opentsdb.utils.Config;
@@ -26,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 
 public class Utils {
-  private static final Logger LOG = LoggerFactory.getLogger(RollupPublisher.class);
+  private static final Logger LOG = LoggerFactory.getLogger(Utils.class);
   public static Date floorTimestamp(Date ts, int windowMinutes) {
     Calendar calendar = Calendar.getInstance();
     calendar.set(Calendar.SECOND, 0);
@@ -38,6 +37,7 @@ public class Utils {
     long finalTS = calendar.getTime().getTime() / 1000;
     return new Date(finalTS);
   }
+
   public static IncomingDataPoint makeDatapoint(final String metric,
                                                  final long timestamp, final long value, final Map<String, String> tags) {
     HashMap<String, String> tagsHash = new HashMap<String, String>(tags);
@@ -77,14 +77,19 @@ public class Utils {
   }
 
   public static StartupPlugin loadStartupPlugin(Config config) {
+    LOG.debug("Loading Startup Plugin");
     // load the startup plugin if enabled
-    StartupPlugin startup = null;
+    StartupPlugin startup;
+
     if (config.getBoolean("tsd.startup.enable")) {
+
       LOG.debug("startup plugin enabled");
       String startupPluginClass = config.getString("tsd.startup.plugin");
+
       LOG.debug(String.format("Will attempt to load: %s", startupPluginClass));
       startup = PluginLoader.loadSpecificPlugin(startupPluginClass
               , StartupPlugin.class);
+
       if (startup == null) {
         LOG.debug(String.format("2nd attempt will attempt to load: %s", startupPluginClass));
         startup = loadSpecificPlugin(config.getString("tsd.startup.plugin"), StartupPlugin.class);
@@ -93,11 +98,13 @@ public class Utils {
                   config.getString("tsd.startup.plugin"));
         }
       }
+
       try {
         startup.initialize(config);
       } catch (Exception e) {
         throw new RuntimeException("Failed to initialize startup plugin", e);
       }
+
       LOG.info("initialized startup plugin [" +
               startup.getClass().getCanonicalName() + "] version: "
               + startup.version());

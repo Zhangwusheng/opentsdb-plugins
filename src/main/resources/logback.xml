@@ -45,14 +45,14 @@
             </providers>
         </encoder>
     </appender>
-    <logger name="QueryLog" level="OFF" additivity="false">
-        <appender-ref ref="QUERY_LOG"/>
+    <logger name="QueryLog" level="INFO" additivity="false">
+        <appender-ref ref="JSON"/>
     </logger>
     <logger name="org.apache.zookeeper" level="ERROR"/>
     <logger name="org.hbase.async" level="ERROR"/>
     <logger name="com.stumbleupon.async" level="ERROR"/>
-    <logger name="io.tsdb.opentsdb.discovery" level="INFO"/>
-    <logger name="net.opentsdb.tsd" level="INFO" />
+    <logger name="io.tsdb.opentsdb.discovery" level="ERROR"/>
+    <logger name="net.opentsdb.tsd" level="ERROR" />
     <root level="INFO">
         <appender-ref ref="JSON"/>
     </root>

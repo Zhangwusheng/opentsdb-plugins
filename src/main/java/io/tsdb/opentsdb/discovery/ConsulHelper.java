@@ -10,16 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
-import static io.tsdb.opentsdb.core.Utils.getConfigPropertyInt;
 import static io.tsdb.opentsdb.core.Utils.getConfigPropertyString;
 
-/**
- * Created by jcreasy on 12/5/16.
- */
 public class ConsulHelper {
     private static Logger log = LoggerFactory.getLogger(ConsulPlugin.class);
 
-    public final static AgentClient getClient(final Config config) throws Exception {
+    public static AgentClient getClient(final Config config) throws Exception {
         Consul consul = null;
         try {
             String consulUrl   = getConfigPropertyString(config, "tsd.discovery.consul_url", "http://localhost:8500");

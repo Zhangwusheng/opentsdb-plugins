@@ -24,8 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @MetaInfServices
-public class IdentityPlugin extends StartupPlugin {
-  Logger log = LoggerFactory.getLogger(CuratorPlugin.class);
+class IdentityPlugin extends StartupPlugin {
+  private final static Logger log = LoggerFactory.getLogger(IdentityPlugin.class);
+
   public IdentityPlugin() {
     log.debug("constructor called");
   }
@@ -61,9 +62,7 @@ public class IdentityPlugin extends StartupPlugin {
   public String getType() { return "Curator Service Discovery"; }
 
   @Override
-  public void collectStats(StatsCollector collector) {
-    return;
-  }
+  public void collectStats(StatsCollector collector) {}
 
   @Override
   public boolean getPluginReady() {

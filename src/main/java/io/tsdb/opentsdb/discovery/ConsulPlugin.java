@@ -1,6 +1,6 @@
 package io.tsdb.opentsdb.discovery;
 
-/**
+/*
  * Copyright 2015 The DiscoveryPlugins Authors
  * <p/>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,8 @@ package io.tsdb.opentsdb.discovery;
 import com.google.common.net.HostAndPort;
 import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;
-import com.orbitz.consul.HealthClient;
-import com.orbitz.consul.model.health.ServiceHealth;
+//import com.orbitz.consul.HealthClient;
+//import com.orbitz.consul.model.health.ServiceHealth;
 import org.kohsuke.MetaInfServices;
 import com.stumbleupon.async.Deferred;
 import net.opentsdb.core.TSDB;
@@ -30,7 +30,7 @@ import net.opentsdb.utils.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
+//import java.util.List;
 
 import static io.tsdb.opentsdb.core.Utils.getConfigPropertyInt;
 import static io.tsdb.opentsdb.core.Utils.getConfigPropertyString;

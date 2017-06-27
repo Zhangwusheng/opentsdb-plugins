@@ -16,6 +16,7 @@ package io.tsdb.opentsdb;
  */
 
 import io.netty.handler.timeout.TimeoutException;
+import io.tsdb.opentsdb.discovery.ConsulShutdownHook;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.tools.ArgP;
 import net.opentsdb.tools.StartupPlugin;
@@ -113,6 +114,7 @@ public class ExecutePlugin {
         StartupPlugin startup = loadStartupPlugin(config);
         if (startup != null) {
             LOG.info(startup.version());
+            Runtime.getRuntime().addShutdownHook(new ConsulShutdownHook());
         } else {
             LOG.info("Did not load Startup Plugin");
         }

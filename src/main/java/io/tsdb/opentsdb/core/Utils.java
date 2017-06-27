@@ -22,6 +22,10 @@ import net.opentsdb.utils.PluginLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.*;
 
 public class Utils {
@@ -147,5 +151,35 @@ public class Utils {
 
     LOG.warn("Unable to locate locate plugin: " + name);
     return null;
+  }
+
+  public static String getMachineIP() {
+    try {
+      String hostIP = InetAddress.getLocalHost().getHostAddress();
+      if (!hostIP.equals("127.0.0.1")) {
+        return hostIP;
+      }
+
+        /*
+         * Above method often returns "127.0.0.1", In this case we need to
+         * check all the available network interfaces
+         */
+      Enumeration<NetworkInterface> nInterfaces = NetworkInterface
+              .getNetworkInterfaces();
+      while (nInterfaces.hasMoreElements()) {
+        Enumeration<InetAddress> inetAddresses = nInterfaces
+                .nextElement().getInetAddresses();
+        while (inetAddresses.hasMoreElements()) {
+          String address = inetAddresses.nextElement()
+                  .getHostAddress();
+          if (!address.equals("127.0.0.1")) {
+            return address;
+          }
+        }
+      }
+    } catch (UnknownHostException | SocketException e1) {
+      LOG.error(e1.getMessage());
+    }
+    return "127.0.0.1";
   }
 }

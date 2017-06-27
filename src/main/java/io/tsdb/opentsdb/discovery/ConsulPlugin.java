@@ -18,9 +18,16 @@ package io.tsdb.opentsdb.discovery;
 
 import com.google.common.net.HostAndPort;
 import com.orbitz.consul.AgentClient;
+import com.orbitz.consul.CatalogClient;
 import com.orbitz.consul.Consul;
 //import com.orbitz.consul.HealthClient;
 //import com.orbitz.consul.model.health.ServiceHealth;
+import com.orbitz.consul.HealthClient;
+import com.orbitz.consul.model.ConsulResponse;
+import com.orbitz.consul.model.agent.ImmutableRegistration;
+import com.orbitz.consul.model.agent.Registration;
+import com.orbitz.consul.model.catalog.CatalogService;
+import com.orbitz.consul.model.health.ServiceHealth;
 import org.kohsuke.MetaInfServices;
 import com.stumbleupon.async.Deferred;
 import net.opentsdb.core.TSDB;
@@ -32,54 +39,54 @@ import org.slf4j.LoggerFactory;
 
 //import java.util.List;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 import static io.tsdb.opentsdb.core.Utils.getConfigPropertyInt;
 import static io.tsdb.opentsdb.core.Utils.getConfigPropertyString;
 
 @MetaInfServices
 public class ConsulPlugin extends StartupPlugin {
-    private Logger log = LoggerFactory.getLogger(ConsulPlugin.class);
-    private Consul consul;
-    private String tsdMode;
-    private String visibleHost;
-    private Integer visiblePort;
-    private String serviceName;
-    private String serviceId;
+    private final static Logger LOGGER = LoggerFactory.getLogger(ConsulPlugin.class);
+    private static Consul consul;
+    private static String tsdMode;
+    private static String visibleHost;
+    private static Integer visiblePort;
+    private static String serviceName;
+    private static String serviceId;
 
     @Override
     public Config initialize(final Config config) {
         try {
-            this.visibleHost = getConfigPropertyString(config, "tsd.discovery.visble_host", "localhost");
-            this.visiblePort = getConfigPropertyInt(config, "tsd.discovery.visble_port", 4242);
-            this.serviceName = getConfigPropertyString(config, "tsd.discovery.service_name", "OpenTSDB");
-            this.serviceId   = getConfigPropertyString(config, "tsd.discovery.service_id", "opentsdb");
-            this.tsdMode     = getConfigPropertyString(config, "tsd.mode", "ro");
+            visibleHost = getConfigPropertyString(config, "tsd.discovery.visble_host", "localhost");
+            visiblePort = getConfigPropertyInt(config, "tsd.discovery.visble_port", 4242);
+            serviceName = getConfigPropertyString(config, "tsd.discovery.service_name", "OpenTSDB");
+            serviceId   = getConfigPropertyString(config, "tsd.discovery.service_id", "opentsdb");
+            tsdMode     = getConfigPropertyString(config, "tsd.mode", "ro");
 
             String consulUrl = getConfigPropertyString(config, "tsd.discovery.consul_url", "http://localhost:8500");
 
-            log.debug("Finished with config");
+            LOGGER.debug("Finished with config");
 
-            this.consul = Consul.builder().withUrl(consulUrl).build();
-            log.info("Consul ServiceDiscovery Plugin Initialized");
+            consul = Consul.builder().withUrl(consulUrl).build();
+            LOGGER.info("Consul ServiceDiscovery Plugin Initialized");
+
+            updateZookeeperQuorum(config);
+
         } catch (Exception e) {
-            log.error("Could not register this instance with Consul", e);
+            LOGGER.error("Could not register this instance with Consul", e);
         }
         return config;
     }
 
     @Override
     public void setReady(TSDB tsdb) {
-        log.debug("OpenTSDB is Ready");
+        LOGGER.debug("OpenTSDB is Ready");
         try {
-            HostAndPort tsdHostAndPort = HostAndPort.fromParts(visibleHost, visiblePort);
-            AgentClient agentClient = this.consul.agentClient();
-            agentClient.register(visiblePort, tsdHostAndPort, 30L, this.serviceName, this.serviceId, tsdMode);
-            if (agentClient.isRegistered(this.serviceId)) {
-                log.info("Registered this instance with Consul");
-            } else {
-                log.info("Consul reports that this instance is not registered");
-            }
+            register();
         } catch (Exception e) {
-            log.error("Could not register this instance with Consul", e);
+            LOGGER.error("Could not register this instance with Consul", e);
         }
     }
 
@@ -87,10 +94,10 @@ public class ConsulPlugin extends StartupPlugin {
     public Deferred<Object> shutdown() {
         Deferred<Object> deferred = new Deferred<>();
         try {
-            this.consul.agentClient().deregister(this.serviceId);
-            log.info("Instance Deregistered from Consul");
+            consul.agentClient().deregister(serviceId);
+            LOGGER.info("Instance Deregistered from Consul");
         } catch (Exception e) {
-            log.error("Could not deregister this instance with Consul", e);
+            LOGGER.error("Could not deregister this instance with Consul", e);
         }
         return deferred;
     }
@@ -106,12 +113,96 @@ public class ConsulPlugin extends StartupPlugin {
 
     @Override
     public boolean getPluginReady() {
-        if (this.consul.agentClient().isRegistered(this.serviceId)) {
-            log.debug("This instance is ready and registered with Consul");
+        if (consul.agentClient().isRegistered(serviceId)) {
+            LOGGER.debug("This instance is ready and registered with Consul");
             return true;
         } else {
-            log.debug("Consul reports that this instance is not registered");
+            LOGGER.debug("Consul reports that this instance is not registered");
             return false;
+        }
+    }
+
+    private static void register() {
+        AgentClient agentClient = consul.agentClient();
+
+        List<Registration.RegCheck> checks = new ArrayList<Registration.RegCheck>();
+
+        HostAndPort serviceHostAndPort = HostAndPort.fromParts(visibleHost, visiblePort);
+
+        Registration.RegCheck mainCheck = Registration.RegCheck.tcp(serviceHostAndPort.toString(), 30);
+
+        checks.add(mainCheck);
+
+        Registration registration = ImmutableRegistration
+                .builder()
+                .port(visiblePort)
+                .address(visibleHost)
+                .checks(checks)
+                .name(serviceName)
+                .id(serviceId)
+                .addTags(tsdMode)
+                .build();
+
+        agentClient.register(registration);
+
+        if (agentClient.isRegistered(serviceId)) {
+            LOGGER.info("Registered this instance with Consul");
+        } else {
+            LOGGER.warn("Consul reports that this instance is not registered");
+        }
+    }
+
+    private static List<CatalogService> getServiceNodes(String serviceName) {
+        try {
+            CatalogClient catalogClient = consul.catalogClient();
+            ConsulResponse<List<CatalogService>> serviceResponse = catalogClient.getService(serviceName);
+            return serviceResponse.getResponse();
+        } catch (NullPointerException e) {
+            LOGGER.error("Could not retrieve Consul Catalog Client");
+            return null;
+        }
+    }
+
+    private static String buildConnectionString(List<CatalogService> serviceList) {
+        StringBuilder stringBuilder = new StringBuilder();
+
+        Iterator<CatalogService> serviceListIterator = serviceList.iterator();
+        while (serviceListIterator.hasNext()) {
+            CatalogService serviceNode = serviceListIterator.next();
+
+            stringBuilder
+                    .append(serviceNode.getServiceAddress())
+                    .append(":")
+                    .append(serviceNode.getServicePort());
+
+            if (serviceListIterator.hasNext()) {
+                stringBuilder.append(",");
+            }
+        }
+
+        return stringBuilder.toString();
+    }
+
+    private static void updateZookeeperQuorum(final Config config) {
+        String zkQuorum;
+        List<CatalogService> zookeeperService = null;
+
+        zookeeperService = getServiceNodes("zookeeper-2181");
+        if (zookeeperService.size() > 0) {
+            zkQuorum = buildConnectionString(zookeeperService);
+            LOGGER.info("Updated Zookeeper Quorum to " + zkQuorum);
+            config.overrideConfig("tsd.storage.hbase.zk_quorum", zkQuorum);
+        } else {
+            LOGGER.info("Unable to locate zookeeper-2181 in Consul");
+        }
+    }
+
+    static void deregister() {
+        try {
+            consul.agentClient().deregister(serviceId);
+            LOGGER.info("Instance Deregistered from Consul");
+        } catch (Exception e) {
+            LOGGER.error("Could not deregister this instance with Consul", e);
         }
     }
 }

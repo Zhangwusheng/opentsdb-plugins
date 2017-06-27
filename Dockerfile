@@ -19,9 +19,9 @@ WORKDIR   $WORKDIR
 
 ADD       build/install/DiscoveryPlugins/lib/* $WORKDIR/build/libs/
 ADD       build/install/DiscoveryPlugins/bin/* $WORKDIR/bin/
-ADD       src/main/resources/opentsdb.conf $ETCDIR/opentsdb.conf
-ADD       src/main/resources/logback.xml $WORKDIR/build/libs/logback.xml
+#ADD       src/main/resources/opentsdb.conf $ETCDIR/opentsdb.conf
+#ADD       src/main/resources/logback.xml $ETCDIR/logback.xml
 
 VOLUME    ["/etc/opentsdb"]
 
-CMD java ${JAVA_OPTS} -cp "build/libs:build/libs/logback.xml:build/libs/*"  io.tsdb.opentsdb.ExecutePlugin --config=${ETCDIR}/opentsdb.conf
+CMD java ${JAVA_OPTS} -cp "build/libs:${ETCDIR}/log4j.properties:${ETCDIR}/logback.xml:build/libs/*"  io.tsdb.opentsdb.ExecutePlugin --config=${ETCDIR}/opentsdb.conf

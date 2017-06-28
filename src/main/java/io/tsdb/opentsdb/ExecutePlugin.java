@@ -185,7 +185,7 @@ public class ExecutePlugin {
             while (!startup.getPluginReady()) {
                 try {
                     if (tickCount >= STARTUP_READY_TIMEOUT) {
-                        throw new TimeoutException("Timeout while waiting for Startup Plugin Ready");
+                        throw new Exception("Timeout while waiting for Startup Plugin Ready");
                     }
 
                     Thread.sleep(1000);
@@ -194,6 +194,9 @@ public class ExecutePlugin {
                     LOG.error("Startup Plugin ready interrupted", e);
                     break;
                 } catch (TimeoutException e) {
+                    LOG.warn("Startup Plugin is not Ready and timeout expired!");
+                    break;
+                } catch (Exception e) {
                     LOG.warn("Startup Plugin is not Ready and timeout expired!");
                     break;
                 }

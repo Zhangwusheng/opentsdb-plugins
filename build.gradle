@@ -34,7 +34,7 @@ dependencies {
     compile 'com.google.collections:google-collections:1.0'
     compile group: 'org.kohsuke.metainf-services', name: 'metainf-services', version: '1.7'
     compile group: 'commons-daemon', name: 'commons-daemon', version: '1.0.15'
-    compile group: 'io.netty', name: 'netty', version: '3.9.4.Final'
+    compile group: 'io.netty', name: 'netty-all', version: '4.1.12.Final'
     compile group: 'org.jboss.errai.io.netty', name: 'netty-handler', version: '4.0.0.Alpha1.errai.r1'
     compile 'org.apache.commons:commons-lang3:3.4'
     compile 'joda-time:joda-time:2.9.3'
@@ -74,8 +74,9 @@ dependencies {
 
     compile group: 'org.slf4j', name: 'log4j-over-slf4j', version:'1.7.25'
     compile(group: 'org.hbase', name: 'asynchbase', version:'1.7.2') {
-      exclude(module: 'slf4j-api')
-      exclude(module: 'log4j-over-slf4j')
+        exclude(group: 'netty-all')
+        exclude(module: 'slf4j-api')
+        exclude(module: 'log4j-over-slf4j')
     }
     compile(group: 'org.apache.zookeeper', name: 'zookeeper', version:'3.4.6') {
       exclude(module: 'log4j')

@@ -64,9 +64,4 @@ public class CuratorPlugin extends StartupPlugin {
   public void collectStats(StatsCollector collector) {
     return;
   }
-
-  @Override
-  public boolean getPluginReady() {
-    return true;
-  }
 }

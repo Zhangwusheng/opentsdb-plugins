@@ -14,10 +14,14 @@ package io.tsdb.opentsdb.authentication;
 
 
 import com.stumbleupon.async.Deferred;
-import net.opentsdb.auth.AuthenticationPlugin;
+import net.opentsdb.auth.AuthState;
+import net.opentsdb.auth.SimpleAuthStateImpl;
+import net.opentsdb.auth.Authentication;
+import net.opentsdb.auth.Authorization;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.DateTime;
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.kohsuke.MetaInfServices;
 import org.slf4j.Logger;
@@ -30,7 +34,7 @@ import java.util.Map;
  * @since 2.3
  */
 @MetaInfServices
-public class SimpleAuthenticationPlugin extends AuthenticationPlugin {
+public class SimpleAuthenticationPlugin extends Authentication {
     private static final Logger LOG = LoggerFactory.getLogger(SimpleAuthenticationPlugin.class);
     private Map<String, String> authDB = new HashMap();
     private String adminAccessKey = null;
@@ -60,62 +64,90 @@ public class SimpleAuthenticationPlugin extends AuthenticationPlugin {
     }
 
     @Override
-    public Boolean authenticateTelnet(String[] command) {
-        Boolean ret = false;
-        if (command.length  < 3 || command.length > 4) {
-            LOG.error("Invalid Authentication Command Length: " + Integer.toString(command.length));
-        } else if (command[0].equals("auth")) {
-            if (command[1].equals(AuthenticationUtil.algo.trim().toLowerCase())) {
-                // Command should be 'auth hmacsha256 accessKey:digest:epoch:nonce'
-                Map<String, String> fields = AuthenticationUtil.stringToMap(command[2], ":");
-                LOG.debug("Validating Digest Credentials");
-                ret = this.authenticate((String) fields.get("accessKey"), fields);
-            } else if (command[1].equals("basic")) {
-                // Command should be 'auth basic accessKey secretAccessKey'
-                LOG.debug("Validating Basic Credentials");
-                ret = this.authenticate(command[2], command[3]);
+    public AuthState authenticateTelnet(Channel channel, String[] strings) {
+        AuthState ret;
+        try {
+            if (strings.length  < 3 || strings.length > 4) {
+                throw new IllegalArgumentException("Invalid Authentication Command Length: " + Integer.toString(strings.length));
+            } else if (strings[0].equals("auth")) {
+                if (strings[1].equals(AuthenticationUtil.algo.trim().toLowerCase())) {
+                    // Command should be 'auth hmacsha256 accessKey:digest:epoch:nonce'
+                    Map<String, String> fields = AuthenticationUtil.stringToMap(strings[2], ":");
+                    LOG.debug("Validating Digest Credentials");
+                    if(this.authenticate((String) fields.get("accessKey"), fields)) {
+                        ret = new SimpleAuthStateImpl((String) fields.get("accessKey"), AuthState.AuthStatus.SUCCESS, "Access Granted");
+                    } else {
+                        ret = new SimpleAuthStateImpl((String) fields.get("accessKey"), AuthState.AuthStatus.FORBIDDEN, "Access Denied");
+                    }
+                } else if (strings[1].equals("basic")) {
+                    // Command should be 'auth basic accessKey secretAccessKey'
+                    LOG.debug("Validating Basic Credentials");
+                    if (this.authenticate(strings[2], strings[3])) {
+                        ret = new SimpleAuthStateImpl(strings[2], AuthState.AuthStatus.SUCCESS, "Access Granted");
+                    } else {
+                        ret = new SimpleAuthStateImpl(strings[2], AuthState.AuthStatus.FORBIDDEN, "Access Denied");
+                    }
+                } else {
+                    throw new IllegalArgumentException("Command not understood: " + strings[0] + " " + strings[1]);
+                }
             } else {
-                LOG.error("Command not understood: " + command[0] + " " + command[1]);
+                throw new IllegalArgumentException("Command is not auth: " + strings[0]);
             }
-        } else {
-            LOG.error("Command is not auth: " + command[0]);
+        } catch (IllegalArgumentException ex) {
+            ret = new SimpleAuthStateImpl("unknown", ex);
         }
         return ret;
     }
 
-    //Authorization: OpenTSDB accessKey:digest:epoch:nonce
     @Override
-    public Boolean authenticateHTTP(final HttpRequest req) {
-        Iterable<Map.Entry<String,String>> headers = req.headers();
-        Iterator entries = headers.iterator();
-        while (entries.hasNext()) {
-            Map.Entry thisEntry = (Map.Entry) entries.next();
-            String key = (String) thisEntry.getKey();
-            String value = (String) thisEntry.getValue();
-            if (key.trim().toLowerCase().equals("authorization")) {
-                String[] fieldsRaw = value.split(" ");
-                if (fieldsRaw.length == 2 && fieldsRaw[0].trim().toLowerCase().equals("opentsdb")) {
-                    String[] fieldsArray = fieldsRaw[1].trim().toLowerCase().split(":");
-                    Map<String, String> fields = AuthenticationUtil.stringToMap(fieldsRaw[1], ":");
-                    LOG.debug("Validating Digest Credentials");
-                    return this.authenticate((String) fields.get("accessKey"), fields);
-                } else {
-                    throw new IllegalArgumentException("Improperly formatted Authorization Header: " + value);
+    public AuthState authenticateHTTP(Channel channel, HttpRequest httpRequest) {
+        AuthState ret = null;
+        try {
+            Iterable<Map.Entry<String, String>> headers = httpRequest.headers();
+            Iterator entries = headers.iterator();
+            while (entries.hasNext()) {
+                Map.Entry thisEntry = (Map.Entry) entries.next();
+                String key = (String) thisEntry.getKey();
+                String value = (String) thisEntry.getValue();
+                if (key.trim().toLowerCase().equals("authorization")) {
+                    String[] fieldsRaw = value.split(" ");
+                    if (fieldsRaw.length == 2 && fieldsRaw[0].trim().toLowerCase().equals("opentsdb")) {
+                        String[] fieldsArray = fieldsRaw[1].trim().toLowerCase().split(":");
+                        Map<String, String> fields = AuthenticationUtil.stringToMap(fieldsRaw[1], ":");
+                        LOG.debug("Validating Digest Credentials");
+
+                        if (this.authenticate((String) fields.get("accessKey"), fields)) {
+                            if(this.authenticate((String) fields.get("accessKey"), fields)) {
+                                ret = new SimpleAuthStateImpl((String) fields.get("accessKey"), AuthState.AuthStatus.SUCCESS, "Access Granted");
+                            } else {
+                                ret = new SimpleAuthStateImpl((String) fields.get("accessKey"), AuthState.AuthStatus.FORBIDDEN, "Access Denied");
+                            }
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Improperly formatted Authorization Header: " + value);
+                    }
                 }
             }
+            if (ret == null) {
+                throw new IllegalArgumentException("No Authorization Header Found");
+            }
+        } catch (IllegalArgumentException ex) {
+            ret = new SimpleAuthStateImpl("unknown", ex);
         }
-        LOG.info("No Authorization Header Found");
-        return false;
+        return ret;
     }
 
     @Override
+    public boolean isReady(TSDB tsdb, Channel channel) {
+        return false;
+    }
+
     public Boolean storeCredentials(Map fields) {
         String accessKey = (String) fields.get("accessKey");
         String providedSecretKey = (String) fields.get("secretKey");
         return this.storeCredentials(accessKey, providedSecretKey);
     }
 
-    @Override
     public Boolean removeCredentials(Map fields) {
         String adminAccessKey = (String) fields.get("adminAccessKey");
         String adminSecretKey = (String) fields.get("adminSecretKey");

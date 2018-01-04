@@ -92,7 +92,7 @@ public class RollupPublisher extends RTPublisher {
 
   private void storeDatapoint(final IncomingDataPoint dp) {
     long ts = floorTimestamp(new Date(dp.getTimestamp()), this.minutes).getTime();
-    String tagString = getTagString(dp.getTags());
+    String tagString = getTagString(new HashMap<String, String>(dp.getTags()));
     String key = DigestUtils.md5Hex(dp.getMetric() + Objects.toString(ts) + tagString);
     LOG.trace("Key evaluates to: " + key);
     if (!this.dataPointsMap.containsKey(key)) {

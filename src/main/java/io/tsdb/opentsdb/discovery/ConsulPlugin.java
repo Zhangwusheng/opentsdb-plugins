@@ -110,7 +110,7 @@ public class ConsulPlugin extends StartupPlugin {
 
     @Override
     public void collectStats(StatsCollector statsCollector) { }
-
+/*
     @Override
     public boolean getPluginReady() {
         if (consul.agentClient().isRegistered(serviceId)) {
@@ -121,7 +121,7 @@ public class ConsulPlugin extends StartupPlugin {
             return false;
         }
     }
-
+*/
     private static void register() {
         AgentClient agentClient = consul.agentClient();
 

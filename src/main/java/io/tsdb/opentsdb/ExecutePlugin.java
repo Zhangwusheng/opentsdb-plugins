@@ -177,7 +177,7 @@ public class ExecutePlugin {
             startup.setReady(tsdb);
         }
         LOG.info("Ready to serve on " + addr);
-
+/*
         int tickCount = 0;
         int STARTUP_READY_TIMEOUT = 30;
 
@@ -205,6 +205,7 @@ public class ExecutePlugin {
                 LOG.info("Startup Plugin is Ready");
             }
         }
+        */
     }
 
     private static void registerShutdownHook() {

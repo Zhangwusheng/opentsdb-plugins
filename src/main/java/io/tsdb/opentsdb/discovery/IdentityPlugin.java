@@ -63,9 +63,4 @@ class IdentityPlugin extends StartupPlugin {
 
   @Override
   public void collectStats(StatsCollector collector) {}
-
-  @Override
-  public boolean getPluginReady() {
-    return true;
-  }
 }

@@ -52,7 +52,7 @@ public class DataPoints {
   public DataPoints(final long timestamp, final IncomingDataPoint dp) {
     this.metric = dp.getMetric();
     this.timestamp = timestamp;
-    this.tags = dp.getTags();
+    this.tags = new HashMap<String, String>(dp.getTags());
     this.dataPointList = new ArrayList<IncomingDataPoint>();
     this.dataPointList.add(dp);
   }
